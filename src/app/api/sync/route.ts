@@ -17,14 +17,15 @@ export async function POST(request: NextRequest) {
     const result = await syncService.syncData()
 
     return NextResponse.json(result, {
-      status: result.success ? 200 : 500
+      status: result.success ? 200 : 500,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
     })
 
   } catch (error) {
     console.error('Erro na API de sync:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
-      { status: 500 }
+      { status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     )
   }
 }
@@ -35,16 +36,16 @@ export async function GET() {
     const lastSync = await syncService.getLastSync()
     const isRunning = syncService.isCurrentlyRunning()
 
-    return NextResponse.json({
-      isRunning,
-      lastSync
-    })
+    return NextResponse.json(
+      { isRunning, lastSync },
+      { headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    )
 
   } catch (error) {
     console.error('Erro ao buscar status do sync:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
-      { status: 500 }
+      { status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     )
   }
 }

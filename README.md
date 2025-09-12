@@ -202,3 +202,29 @@ Para questões técnicas ou melhorias, entre em contato através dos canais de d
 ---
 
 **Desenvolvido com ❤️ usando Next.js 15 e as melhores práticas de desenvolvimento.**
+
+## 📦 Deploy (Vercel) — checklist rápida
+
+Antes de fazer deploy em Vercel, confirme os itens abaixo para evitar erros de build/runtime:
+
+- Variáveis de ambiente (Settings > Environment Variables):
+   - `DATABASE_URL` (string de conexão Postgres)
+   - `NEXTAUTH_URL`, `NEXTAUTH_SECRET` (se usar autenticação)
+   - `API_BASE_URL`, `API_EMAIL`, `API_PASSWORD`, `API_CONTRATOS` (integração externa)
+   - `CRON_SCHEDULE` / `CRON_SECRET` (se necessário)
+
+- Scripts importantes em `package.json` (já adicionados):
+   - `postinstall`: roda `prisma generate` durante `npm install`
+   - `vercel-build`: roda `prisma generate && next build` quando Vercel executa o build
+
+- Certifique-se que Vercel executa `npm install` ou que `vercel-build` esteja definido nas configurações do projeto.
+
+## 🔤 Charset / encoding
+
+Se você notar caracteres estranhos em mensagens JSON (por exemplo `SincronizaÃ§Ã£o`), confirme que a API externa e suas rotas retornam JSON UTF-8 e que o header `Content-Type: application/json; charset=utf-8` está presente. Em clientes PowerShell/Terminal, use ferramentas que aceitam UTF-8 para visualizar corretamente.
+
+## ✅ Próximos passos recomendados
+
+- Verificar logs de `/api/sync` após um POST manual para confirmar que os registros são persistidos em `sync_logs`.
+- Adicionar uma etapa de CI que rode `npx prisma generate` antes do build (ex.: GitHub Actions) para builds repetíveis.
+- Validar e corrigir eventuais problemas de encoding na API externa ou adicionar re-encoding no serviço de sincronização.

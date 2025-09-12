@@ -1,13 +1,19 @@
 import { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma__: PrismaClient | undefined
 }
 
+const prismaClient = global.__prisma__
+
 export const prisma =
-  globalForPrisma.prisma ??
+  prismaClient ??
   new PrismaClient({
-    log: ['query'],
+    // enable detailed query logging only in development
+    log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'],
   })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  global.__prisma__ = prisma
+}
