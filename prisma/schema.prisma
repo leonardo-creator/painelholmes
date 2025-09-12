@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Contrato {
+  id        String     @id @default(cuid())
+  numero    String     @unique
+  registros Registro[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("contratos")
+}
+
+model Registro {
+  id         String   @id @default(cuid())
+  contratoId String
+  contrato   Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  
+  // Dados do registro
+  autor      String
+  data       String
+  extraInfo  String   @map("extra_info")
+  numero     String?
+  prazo      String
+  status     String
+  tipo       String
+  
+  // Metadados
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([contratoId])
+  @@index([status])
+  @@index([tipo])
+  @@index([prazo])
+  @@map("registros")
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  status    String   // 'running', 'success', 'error'
+  message   String?
+  recordsProcessed Int @default(0)
+  
+  @@map("sync_logs")
+}
