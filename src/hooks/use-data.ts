@@ -102,7 +102,7 @@ export function useData() {
     }
   }, [fetchData, fetchSyncStatus])
 
-  const exportData = useCallback(async (format: 'csv' | 'json') => {
+  const exportData = useCallback(async (format: 'csv' | 'json' | 'xlsx') => {
     try {
       const response = await fetch(`/api/export?format=${format}`)
       
@@ -115,7 +115,7 @@ export function useData() {
       const link = document.createElement('a')
       link.href = url
       
-      const filename = `painel-holmes-${new Date().toISOString().split('T')[0]}.${format}`
+  const filename = `painel-holmes-${new Date().toISOString().split('T')[0]}.${format}`
       link.download = filename
       
       document.body.appendChild(link)
