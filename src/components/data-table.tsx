@@ -7,14 +7,13 @@ import {
   useReactTable, 
   getCoreRowModel, 
   getSortedRowModel, 
-  getPaginationRowModel,
   getFilteredRowModel,
   type ColumnDef,
   type SortingState,
   type ColumnFiltersState,
   flexRender,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronUp, Download, RefreshCw, Search, Filter } from 'lucide-react'
+import { ChevronDown, ChevronUp, Download, RefreshCw, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/status-badge'
+import { extractTipo, parseAutor, parseExtraInfo } from '@/lib/smart-parser'
 
 export interface RegistroData {
   readonly id: string
@@ -66,7 +66,79 @@ export function DataTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
-  const columns: ColumnDef<RegistroData>[] = useMemo(
+  type FlatRowData = {
+    id: string
+    contrato: string
+    status: string
+    tipoExibicao: string
+    autor: string
+    protocolo?: string
+    funcionario?: string
+    escopo?: string
+    contratoFilho?: string
+    acao?: string
+    responsavel?: string
+    prazoText?: string
+    prazoDate?: Date | null
+    deltaDias?: number | null
+    createdAt: string
+    updatedAt: string
+  }
+
+  const flattenedRows: FlatRowData[] = useMemo(() => {
+    const rows: FlatRowData[] = []
+    for (const r of data) {
+      const tipoExibicao = extractTipo(r.data)
+      const autorInfo = parseAutor(r.autor)
+      const items = parseExtraInfo(r.extraInfo)
+
+      if (items.length === 0) {
+        rows.push({
+          id: `${r.id}-0`,
+          contrato: r.contrato,
+          status: r.status,
+          tipoExibicao,
+          autor: r.autor,
+          protocolo: autorInfo.protocolo,
+          funcionario: autorInfo.funcionario,
+          escopo: autorInfo.escopo,
+          contratoFilho: autorInfo.contratoFilho,
+          acao: undefined,
+          responsavel: undefined,
+          prazoText: undefined,
+          prazoDate: null,
+          deltaDias: null,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        })
+        continue
+      }
+
+      items.forEach((it, idx) => {
+        rows.push({
+          id: `${r.id}-${idx}`,
+          contrato: r.contrato,
+          status: r.status,
+          tipoExibicao,
+          autor: r.autor,
+          protocolo: autorInfo.protocolo,
+          funcionario: autorInfo.funcionario,
+          escopo: autorInfo.escopo,
+          contratoFilho: autorInfo.contratoFilho,
+          acao: it.acao,
+          responsavel: it.responsavel,
+          prazoText: it.prazoText,
+          prazoDate: it.prazoDate ?? null,
+          deltaDias: it.deltaDias ?? null,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        })
+      })
+    }
+    return rows
+  }, [data])
+
+  const columns: ColumnDef<FlatRowData>[] = useMemo(
     () => [
       {
         accessorKey: 'contrato',
@@ -79,11 +151,8 @@ export function DataTable({
               className="h-auto p-0 font-medium"
             >
               Contrato
-              {isSorted === 'asc' ? (
-                <ChevronUp className="ml-2 h-4 w-4" />
-              ) : isSorted === 'desc' ? (
-                <ChevronDown className="ml-2 h-4 w-4" />
-              ) : null}
+              {isSorted === 'asc' && <ChevronUp className="ml-2 h-4 w-4" />}
+              {isSorted === 'desc' && <ChevronDown className="ml-2 h-4 w-4" />}
             </Button>
           )
         },
@@ -104,11 +173,8 @@ export function DataTable({
               className="h-auto p-0 font-medium"
             >
               Status
-              {isSorted === 'asc' ? (
-                <ChevronUp className="ml-2 h-4 w-4" />
-              ) : isSorted === 'desc' ? (
-                <ChevronDown className="ml-2 h-4 w-4" />
-              ) : null}
+              {isSorted === 'asc' && <ChevronUp className="ml-2 h-4 w-4" />}
+              {isSorted === 'desc' && <ChevronDown className="ml-2 h-4 w-4" />}
             </Button>
           )
         },
@@ -116,67 +182,15 @@ export function DataTable({
           <StatusBadge status={row.getValue('status')} />
         ),
       },
+      // Tipo derivado (removendo 0.0)
       {
-        accessorKey: 'tipo',
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted()
-          return (
-            <Button
-              variant="ghost"
-              onClick={() => column.toggleSorting(isSorted === 'asc')}
-              className="h-auto p-0 font-medium"
-            >
-              Tipo
-              {isSorted === 'asc' ? (
-                <ChevronUp className="ml-2 h-4 w-4" />
-              ) : isSorted === 'desc' ? (
-                <ChevronDown className="ml-2 h-4 w-4" />
-              ) : null}
-            </Button>
-          )
-        },
+        accessorKey: 'tipoExibicao',
+        header: 'Tipo',
         cell: ({ row }) => (
-          <div className="max-w-[200px] truncate text-sm">
-            {row.getValue('tipo')}
+          <div className="max-w-[240px] truncate text-sm" title={row.getValue('tipoExibicao') as string}>
+            {row.getValue('tipoExibicao') as string}
           </div>
         ),
-      },
-      {
-        accessorKey: 'prazo',
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted()
-          return (
-            <Button
-              variant="ghost"
-              onClick={() => column.toggleSorting(isSorted === 'asc')}
-              className="h-auto p-0 font-medium"
-            >
-              Prazo
-              {isSorted === 'asc' ? (
-                <ChevronUp className="ml-2 h-4 w-4" />
-              ) : isSorted === 'desc' ? (
-                <ChevronDown className="ml-2 h-4 w-4" />
-              ) : null}
-            </Button>
-          )
-        },
-        cell: ({ row }) => {
-          try {
-            const prazo = row.getValue('prazo') as string
-            const date = new Date(prazo)
-            return (
-              <div className="text-sm">
-                {format(date, 'dd/MM/yyyy', { locale: ptBR })}
-              </div>
-            )
-          } catch {
-            return (
-              <div className="text-sm text-muted-foreground">
-                {row.getValue('prazo')}
-              </div>
-            )
-          }
-        },
       },
       {
         accessorKey: 'autor',
@@ -189,11 +203,8 @@ export function DataTable({
               className="h-auto p-0 font-medium"
             >
               Autor
-              {isSorted === 'asc' ? (
-                <ChevronUp className="ml-2 h-4 w-4" />
-              ) : isSorted === 'desc' ? (
-                <ChevronDown className="ml-2 h-4 w-4" />
-              ) : null}
+              {isSorted === 'asc' && <ChevronUp className="ml-2 h-4 w-4" />}
+              {isSorted === 'desc' && <ChevronDown className="ml-2 h-4 w-4" />}
             </Button>
           )
         },
@@ -203,28 +214,76 @@ export function DataTable({
           </div>
         ),
       },
+      // Campos derivados do Autor
       {
-        accessorKey: 'data',
-        header: 'Dados',
+        accessorKey: 'protocolo',
+        header: 'Protocolo',
         cell: ({ row }) => (
-          <div className="max-w-[200px] truncate text-sm">
-            {row.getValue('data')}
+          <div className="font-mono text-xs">{(row.getValue('protocolo') as string) ?? '-'}</div>
+        ),
+      },
+      {
+        id: 'alvo',
+        header: 'Funcionário / Escopo',
+        cell: ({ row }) => {
+          const func = row.original.funcionario
+          const escopo = row.original.escopo
+          const val = func && func.trim().length > 0 ? func : (escopo && escopo.trim().length > 0 ? escopo : '-')
+          return (
+            <div className="max-w-[260px] truncate text-sm" title={val}>
+              {val}
+            </div>
+          )
+        },
+      },
+      {
+        accessorKey: 'contratoFilho',
+        header: 'Contrato Filho',
+        cell: ({ row }) => (
+          <div className="text-xs">{(row.getValue('contratoFilho') as string) ?? '-'}</div>
+        ),
+      },
+      // Colunas derivadas de Informações Extras (uma pendência por linha)
+      {
+        accessorKey: 'acao',
+        header: 'Ação',
+        cell: ({ row }) => (
+          <div className="max-w-[280px] truncate text-sm" title={(row.getValue('acao') as string) ?? ''}>
+            {(row.getValue('acao') as string) ?? '-'}
           </div>
         ),
       },
       {
-        accessorKey: 'extraInfo',
-        header: 'Info Extra',
+        accessorKey: 'responsavel',
+        header: 'Responsável',
+        cell: ({ row }) => (
+          <div className="max-w-[220px] truncate text-sm" title={(row.getValue('responsavel') as string) ?? ''}>
+            {(row.getValue('responsavel') as string) ?? '-'}
+          </div>
+        ),
+      },
+      {
+        id: 'prazoExtra',
+        header: 'Prazo (extra)',
         cell: ({ row }) => {
-          const extraInfo = row.getValue('extraInfo') as string
-          return (
-            <div 
-              className="max-w-[300px] truncate text-sm cursor-help" 
-              title={extraInfo}
-            >
-              {extraInfo}
-            </div>
-          )
+          const prazoDate = (row.original as FlatRowData).prazoDate
+          const prazoText = (row.original as FlatRowData).prazoText
+          const label = prazoDate ? format(prazoDate, 'dd/MM/yyyy HH:mm', { locale: ptBR }) : (prazoText ?? '-')
+          return <div className="text-sm">{label}</div>
+        },
+      },
+      {
+        id: 'deltaPrazo',
+        header: 'Δ (hoje - prazo)',
+        cell: ({ row }) => {
+          const delta = (row.original as FlatRowData).deltaDias
+          let cls = 'text-muted-foreground'
+          if (delta != null) {
+            if (delta > 0) cls = 'text-red-600'
+            else if (delta < 0) cls = 'text-emerald-600'
+            else cls = 'text-amber-600'
+          }
+          return <div className={cls}>{delta != null ? `${delta}d` : '-'}</div>
         },
       },
     ],
@@ -232,13 +291,12 @@ export function DataTable({
   )
 
   const table = useReactTable({
-    data,
+    data: flattenedRows,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     state: {
@@ -389,35 +447,7 @@ export function DataTable({
             </Table>
           </div>
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between space-x-2 py-4">
-            <div className="text-sm text-muted-foreground">
-              Mostrando {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} a{' '}
-              {Math.min(
-                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                table.getFilteredRowModel().rows.length
-              )}{' '}
-              de {table.getFilteredRowModel().rows.length} registros
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                Próximo
-              </Button>
-            </div>
-          </div>
+          {/* Paginação removida: exibir tudo de uma vez */}
         </CardContent>
       </Card>
     </div>
