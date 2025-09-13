@@ -23,7 +23,7 @@ export class ApiSyncService {
     let syncLog: any = null
 
     try {
-      console.log('🚀 Iniciando sync dos dados...')
+  console.log('🚀 Iniciando sync dos dados...')
       
       syncLog = await prisma.syncLog.create({
         data: {
@@ -32,12 +32,25 @@ export class ApiSyncService {
         }
       })
 
-      console.log('� Log de sync criado:', syncLog.id)
+  console.log('📝 Log de sync criado:', syncLog.id)
       
-      // Construir URL da API com encoding correto
-      const apiUrl = `${API_CONFIG.baseUrl}/api/scrape?email=${encodeURIComponent(API_CONFIG.email)}&password=${encodeURIComponent(API_CONFIG.password)}&contrato=${encodeURIComponent(API_CONFIG.contratos)}`
+  // Construir URL da API de forma resiliente (evitar path duplicado em production)
+  const base = (API_CONFIG.baseUrl || '').replace(/\/+$/, '')
+  const scrapePath = '/api/scrape'
+  const endpoint = base.endsWith(scrapePath) ? base : `${base}${scrapePath}`
 
-      console.log('📡 Fazendo request para:', apiUrl.substring(0, 100) + '...')
+  const apiUrlObj = new URL(endpoint)
+  apiUrlObj.searchParams.set('email', API_CONFIG.email)
+  apiUrlObj.searchParams.set('password', API_CONFIG.password)
+  apiUrlObj.searchParams.set('contrato', API_CONFIG.contratos)
+
+  const apiUrl = apiUrlObj.toString()
+
+  // Log seguro sem vazar credenciais
+  const safeUrl = new URL(apiUrl)
+  safeUrl.searchParams.set('email', '***')
+  safeUrl.searchParams.set('password', '***')
+  console.log('📡 Fazendo request para:', safeUrl.toString())
       
       // Fazer request para API externa
       const response = await fetch(apiUrl, {
