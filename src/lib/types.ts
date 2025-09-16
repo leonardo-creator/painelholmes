@@ -44,5 +44,5 @@ export const API_CONFIG = {
   baseUrl: process.env.API_BASE_URL || 'http://31.97.254.228:5000',
   email: process.env.API_EMAIL || 'leonardojuvencio@brkambiental.com.br',
   password: process.env.API_PASSWORD || '@i#f1oHA5pAU32$$$%',
-  contratos: process.env.API_CONTRATOS || '4600013206,4600013454,4600012367,4600013465,4600011099,4600012045'
+  contratos: process.env.API_CONTRATOS || '4600013206,4600013454,4600013465,4600011099,4600012045'
 } as const
