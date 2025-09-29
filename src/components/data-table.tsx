@@ -93,7 +93,7 @@ const filterFns: Record<'contains' | 'inArray', FilterFn<FlatRowData>> = {
   },
 }
 
-interface DataTableProps {
+export interface DataTableProps {
   readonly data: RegistroData[]
   readonly isLoading: boolean
   readonly onRefresh: () => void
@@ -253,8 +253,8 @@ export function DataTable({
   const columns: ColumnDef<FlatRowData>[] = useMemo(
     () => [
       {
-        accessorKey: 'contrato',
-        filterFn: 'inArray',
+  accessorKey: 'contrato',
+  filterFn: filterFns.inArray,
         header: ({ column }) => <SortableHeader column={column} label="Contrato" />,
         cell: ({ row }) => (
           <div className="font-mono text-sm">
@@ -263,8 +263,8 @@ export function DataTable({
         ),
       },
       {
-        accessorKey: 'status',
-        filterFn: 'inArray',
+  accessorKey: 'status',
+  filterFn: filterFns.inArray,
         header: ({ column }) => <SortableHeader column={column} label="Status" />,
         cell: ({ row }) => (
           <StatusBadge status={row.getValue('status')} />
@@ -272,8 +272,8 @@ export function DataTable({
       },
       // Tipo derivado (removendo 0.0)
       {
-        accessorKey: 'tipoExibicao',
-        filterFn: 'inArray',
+  accessorKey: 'tipoExibicao',
+  filterFn: filterFns.inArray,
         header: ({ column }) => <SortableHeader column={column} label="Tipo" />,
         cell: ({ row }) => (
           <div className="max-w-[240px] truncate text-sm" title={String(row.getValue('tipoExibicao'))}>
@@ -299,8 +299,8 @@ export function DataTable({
         ),
       },
       {
-        id: 'alvo',
-        filterFn: 'inArray',
+  id: 'alvo',
+  filterFn: filterFns.inArray,
         accessorFn: (row) => (row.funcionario?.trim() && row.funcionario.trim().length > 0
           ? row.funcionario.trim()
           : (row.escopo?.trim() && row.escopo.trim().length > 0 ? row.escopo.trim() : '')),
@@ -317,8 +317,8 @@ export function DataTable({
         },
       },
       {
-        accessorKey: 'contratoFilho',
-        filterFn: 'inArray',
+  accessorKey: 'contratoFilho',
+  filterFn: filterFns.inArray,
         header: ({ column }) => <SortableHeader column={column} label="Contrato Filho" />,
         cell: ({ row }) => (
           <div className="text-xs">{(row.getValue('contratoFilho') as string) ?? '-'}</div>
@@ -335,8 +335,8 @@ export function DataTable({
         ),
       },
       {
-        accessorKey: 'responsavel',
-        filterFn: 'inArray',
+  accessorKey: 'responsavel',
+  filterFn: filterFns.inArray,
         header: ({ column }) => <SortableHeader column={column} label="Responsável" />,
         cell: ({ row }) => (
           <div className="max-w-[220px] truncate text-sm" title={(row.getValue('responsavel') as string) ?? ''}>
@@ -413,8 +413,8 @@ export function DataTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    enableColumnFilters: true,
-    defaultColumn: { filterFn: 'contains' },
+  enableColumnFilters: true,
+  defaultColumn: { filterFn: filterFns.contains },
     filterFns,
     state: {
       sorting,
