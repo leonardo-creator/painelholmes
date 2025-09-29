@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -12,6 +13,11 @@ const QuerySchema = z.object({
   sortBy: z.string().optional().default('prazo'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc')
 })
+
+const SORTABLE_COLUMNS = ['prazo', 'createdAt', 'updatedAt', 'status', 'autor'] as const
+type SortableColumn = typeof SORTABLE_COLUMNS[number]
+const isSortableColumn = (value: string): value is SortableColumn =>
+  (SORTABLE_COLUMNS as readonly string[]).includes(value as SortableColumn)
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,12 +33,17 @@ export async function GET(request: NextRequest) {
       sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc'
     })
 
-    const page = parseInt(query.page)
-    const pageSize = parseInt(query.pageSize)
+    const parsedPage = parseInt(query.page, 10)
+    const parsedPageSize = parseInt(query.pageSize, 10)
+    const page = Number.isNaN(parsedPage) ? 1 : Math.max(parsedPage, 1)
+    const pageSize = Number.isNaN(parsedPageSize) ? 50 : Math.max(parsedPageSize, 1)
     const skip = (page - 1) * pageSize
 
+    const sortBy: SortableColumn = isSortableColumn(query.sortBy) ? query.sortBy : 'prazo'
+    const sortOrder: Prisma.SortOrder = query.sortOrder === 'asc' ? 'asc' : 'desc'
+
     // Construir filtros
-    const where: any = {}
+    const where: Prisma.RegistroWhereInput = {}
 
     if (query.search) {
       where.OR = [
@@ -53,7 +64,9 @@ export async function GET(request: NextRequest) {
 
     if (query.contrato) {
       where.contrato = {
-        numero: query.contrato
+        is: {
+          numero: query.contrato
+        }
       }
     }
 
@@ -69,7 +82,7 @@ export async function GET(request: NextRequest) {
           }
         },
         orderBy: {
-          [query.sortBy]: query.sortOrder
+          [sortBy]: sortOrder
         },
         skip,
         take: pageSize

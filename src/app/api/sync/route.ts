@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { ApiSyncService } from '@/lib/sync-service'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const syncService = ApiSyncService.getInstance()
     

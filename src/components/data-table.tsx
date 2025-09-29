@@ -3,15 +3,16 @@
 import { useEffect, useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  getSortedRowModel, 
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
   getFilteredRowModel,
   type ColumnDef,
   type SortingState,
   type ColumnFiltersState,
   type Column,
+  type FilterFn,
   flexRender,
 } from '@tanstack/react-table'
 import { ChevronDown, ChevronUp, Download, RefreshCw, Search, Filter } from 'lucide-react'
@@ -44,11 +45,59 @@ export interface RegistroData {
   readonly updatedAt: string
 }
 
-export interface DataTableProps {
+type ExportFormat = 'csv' | 'json' | 'xlsx'
+
+type FlatRowData = {
+  id: string
+  contrato: string
+  status: string
+  tipoExibicao: string
+  autor: string
+  protocolo?: string
+  funcionario?: string
+  escopo?: string
+  contratoFilho?: string
+  acao?: string
+  responsavel?: string
+  prazoText?: string
+  prazoDate?: Date | null
+  deltaDias?: number | null
+  hasParticipanteExterno?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+const CATEGORICAL_COLUMNS = ['contrato', 'status', 'tipoExibicao', 'alvo', 'contratoFilho', 'responsavel'] as const
+type CategoricalColumnId = (typeof CATEGORICAL_COLUMNS)[number]
+const isCategoricalColumn = (value: string): value is CategoricalColumnId =>
+  (CATEGORICAL_COLUMNS as readonly string[]).includes(value as CategoricalColumnId)
+
+const STORAGE_KEY = 'dataTable:v2:state'
+const PARTICIPANTE_EXTERNO_REGEX = /com participante externo/i
+
+const filterFns: Record<'contains' | 'inArray', FilterFn<FlatRowData>> = {
+  contains: (row, columnId, filterValue) => {
+    const value = row.getValue<unknown>(columnId)
+    const search = typeof filterValue === 'string' ? filterValue : ''
+    if (search.length === 0) return true
+    const normalized = typeof value === 'string' ? value : value != null ? String(value) : ''
+    return normalized.toLowerCase().includes(search.toLowerCase())
+  },
+  inArray: (row, columnId, filterValue) => {
+    if (!Array.isArray(filterValue) || filterValue.length === 0) {
+      return true
+    }
+    const value = row.getValue<unknown>(columnId)
+    const normalized = typeof value === 'string' ? value : value != null ? String(value) : ''
+    return filterValue.some((candidate) => typeof candidate === 'string' && candidate === normalized)
+  },
+}
+
+interface DataTableProps {
   readonly data: RegistroData[]
   readonly isLoading: boolean
   readonly onRefresh: () => void
-  readonly onExport: (format: 'csv' | 'json') => void
+  readonly onExport?: (format: ExportFormat) => void
   readonly stats: Record<string, number>
   readonly contratos: Array<{ numero: string; total: number }>
   readonly tipos: Array<{ tipo: string; total: number }>
@@ -86,8 +135,31 @@ export function DataTable({
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({})
 
-  // Persist table state (sorting/filters/globalFilter) across sessions
-  const STORAGE_KEY = 'dataTable:v2:state'
+  const totalContratosRegistros = useMemo(
+    () => contratos.reduce((accumulator, { total }) => accumulator + total, 0),
+    [contratos]
+  )
+  const contratosHighlights = useMemo(() => {
+    if (contratos.length === 0) return ''
+    const entries = contratos.slice(0, 3).map(({ numero, total }) => `${numero} (${total})`)
+    if (contratos.length > 3) {
+      entries.push(`+${contratos.length - 3} outros`)
+    }
+    return entries.join(', ')
+  }, [contratos])
+
+  const totalTiposRegistrados = useMemo(
+    () => tipos.reduce((accumulator, { total }) => accumulator + total, 0),
+    [tipos]
+  )
+  const tiposHighlights = useMemo(() => {
+    if (tipos.length === 0) return ''
+    const entries = tipos.slice(0, 3).map(({ tipo, total }) => `${tipo} (${total})`)
+    if (tipos.length > 3) {
+      entries.push(`+${tipos.length - 3} categorias`)
+    }
+    return entries.join(', ')
+  }, [tipos])
 
   useEffect(() => {
     try {
@@ -112,40 +184,22 @@ export function DataTable({
 
   useEffect(() => {
     try {
-  const toSave = JSON.stringify({ sorting, columnFilters, globalFilter, columnVisibility })
-      if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, toSave)
+      const toSave = JSON.stringify({ sorting, columnFilters, globalFilter, columnVisibility })
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_KEY, toSave)
+      }
     } catch {
       // ignore quota or serialization errors
     }
   }, [sorting, columnFilters, globalFilter, columnVisibility])
-
-  type FlatRowData = {
-    id: string
-    contrato: string
-    status: string
-    tipoExibicao: string
-    autor: string
-    protocolo?: string
-    funcionario?: string
-    escopo?: string
-    contratoFilho?: string
-    acao?: string
-    responsavel?: string
-    prazoText?: string
-    prazoDate?: Date | null
-    deltaDias?: number | null
-  hasParticipanteExterno?: boolean
-    createdAt: string
-    updatedAt: string
-  }
 
   const flattenedRows: FlatRowData[] = useMemo(() => {
     const rows: FlatRowData[] = []
     for (const r of data) {
       const tipoExibicao = extractTipo(r.data)
       const autorInfo = parseAutor(r.autor)
-  const items = parseExtraInfo(r.extraInfo)
-  const hasExt = /com participante externo/i.test(r.extraInfo) || /com participante externo/i.test(r.data) || /com participante externo/i.test(r.autor)
+      const items = parseExtraInfo(r.extraInfo)
+      const hasExt = PARTICIPANTE_EXTERNO_REGEX.test(`${r.extraInfo} ${r.data} ${r.autor}`)
 
       if (items.length === 0) {
         rows.push({
@@ -200,6 +254,7 @@ export function DataTable({
     () => [
       {
         accessorKey: 'contrato',
+        filterFn: 'inArray',
         header: ({ column }) => <SortableHeader column={column} label="Contrato" />,
         cell: ({ row }) => (
           <div className="font-mono text-sm">
@@ -209,6 +264,7 @@ export function DataTable({
       },
       {
         accessorKey: 'status',
+        filterFn: 'inArray',
         header: ({ column }) => <SortableHeader column={column} label="Status" />,
         cell: ({ row }) => (
           <StatusBadge status={row.getValue('status')} />
@@ -217,6 +273,7 @@ export function DataTable({
       // Tipo derivado (removendo 0.0)
       {
         accessorKey: 'tipoExibicao',
+        filterFn: 'inArray',
         header: ({ column }) => <SortableHeader column={column} label="Tipo" />,
         cell: ({ row }) => (
           <div className="max-w-[240px] truncate text-sm" title={String(row.getValue('tipoExibicao'))}>
@@ -243,6 +300,7 @@ export function DataTable({
       },
       {
         id: 'alvo',
+        filterFn: 'inArray',
         accessorFn: (row) => (row.funcionario?.trim() && row.funcionario.trim().length > 0
           ? row.funcionario.trim()
           : (row.escopo?.trim() && row.escopo.trim().length > 0 ? row.escopo.trim() : '')),
@@ -260,6 +318,7 @@ export function DataTable({
       },
       {
         accessorKey: 'contratoFilho',
+        filterFn: 'inArray',
         header: ({ column }) => <SortableHeader column={column} label="Contrato Filho" />,
         cell: ({ row }) => (
           <div className="text-xs">{(row.getValue('contratoFilho') as string) ?? '-'}</div>
@@ -277,6 +336,7 @@ export function DataTable({
       },
       {
         accessorKey: 'responsavel',
+        filterFn: 'inArray',
         header: ({ column }) => <SortableHeader column={column} label="Responsável" />,
         cell: ({ row }) => (
           <div className="max-w-[220px] truncate text-sm" title={(row.getValue('responsavel') as string) ?? ''}>
@@ -320,39 +380,28 @@ export function DataTable({
 
   // Unique values for checkbox filters
   const uniqueValues = useMemo(() => {
-    const make = (key: string, getter: (r: FlatRowData) => string) => {
+    const collect = (getter: (row: FlatRowData) => string) => {
       const set = new Set<string>()
-      flattenedRows.forEach((r) => {
-        const v = getter(r).trim()
-        if (v) set.add(v)
+      flattenedRows.forEach((row) => {
+        const value = getter(row).trim()
+        if (value) set.add(value)
       })
       return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     }
-    return {
-      contrato: make('contrato', (r) => r.contrato),
-      status: make('status', (r) => r.status),
-      tipoExibicao: make('tipoExibicao', (r) => r.tipoExibicao),
-      alvo: make('alvo', (r) => (r.funcionario && r.funcionario.trim().length > 0 ? r.funcionario : (r.escopo || ''))),
-      contratoFilho: make('contratoFilho', (r) => r.contratoFilho || ''),
-      responsavel: make('responsavel', (r) => r.responsavel || ''),
-    }
-  }, [flattenedRows])
 
-  // FilterFns: contains (insensitive) and inArray
-  const filterFns = {
-    contains: (row: any, columnId: string, filterValue: unknown) => {
-      const v = String(row.getValue(columnId) ?? '')
-      const q = String(filterValue ?? '')
-      if (!q) return true
-      return v.toLowerCase().includes(q.toLowerCase())
-    },
-    inArray: (row: any, columnId: string, filterValue: unknown) => {
-      const list = Array.isArray(filterValue) ? (filterValue as string[]) : []
-      if (list.length === 0) return true
-      const v = String(row.getValue(columnId) ?? '')
-      return list.includes(v)
-    },
-  }
+    return {
+      contrato: collect((row) => row.contrato),
+      status: collect((row) => row.status),
+      tipoExibicao: collect((row) => row.tipoExibicao),
+      alvo: collect((row) => {
+        const funcionario = row.funcionario?.trim()
+        if (funcionario) return funcionario
+        return row.escopo?.trim() ?? ''
+      }),
+      contratoFilho: collect((row) => row.contratoFilho ?? ''),
+      responsavel: collect((row) => row.responsavel ?? ''),
+    } satisfies Record<CategoricalColumnId, string[]>
+  }, [flattenedRows])
 
   const table = useReactTable({
     data: flattenedRows,
@@ -365,8 +414,8 @@ export function DataTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     enableColumnFilters: true,
-    defaultColumn: { filterFn: filterFns.contains as any },
-    filterFns: filterFns as any,
+    defaultColumn: { filterFn: 'contains' },
+    filterFns,
     state: {
       sorting,
       columnFilters,
@@ -429,16 +478,16 @@ export function DataTable({
     })
 
     const filenameBase = `painel-holmes-${new Date().toISOString().split('T')[0]}`
-  if (fmt === 'json') {
+    if (fmt === 'json') {
       const blob = new Blob([JSON.stringify(dataOut, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-  a.download = `${filenameBase}.json`
+      a.download = `${filenameBase}.json`
       a.click()
       URL.revokeObjectURL(a.href)
       return
     }
-  if (fmt === 'xlsx') {
+    if (fmt === 'xlsx') {
       const XLSX = await import('xlsx')
       const ws = XLSX.utils.json_to_sheet(dataOut)
       const wb = XLSX.utils.book_new()
@@ -447,7 +496,7 @@ export function DataTable({
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-  a.download = `${filenameBase}.xlsx`
+      a.download = `${filenameBase}.xlsx`
       a.click()
       URL.revokeObjectURL(a.href)
       return
@@ -458,7 +507,7 @@ export function DataTable({
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-  a.download = `${filenameBase}.csv`
+    a.download = `${filenameBase}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -466,7 +515,7 @@ export function DataTable({
   return (
     <div className="space-y-4">
       {/* Header com estatísticas */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -503,6 +552,44 @@ export function DataTable({
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Contratos monitorados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{contratos.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {totalContratosRegistros} registros distribuídos
+            </p>
+            {contratosHighlights && (
+              <p className="mt-2 text-xs text-muted-foreground" title={contratosHighlights}>
+                Destaques: {contratosHighlights}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Tipos catalogados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{tipos.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {totalTiposRegistrados} registros classificados
+            </p>
+            {tiposHighlights && (
+              <p className="mt-2 text-xs text-muted-foreground" title={tiposHighlights}>
+                Destaques: {tiposHighlights}
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filtros e ações */}
@@ -518,7 +605,7 @@ export function DataTable({
             <div className="flex gap-2 flex-wrap justify-end">
               {/* Contagem de 'Com participante externo' considerando filtros */}
               <div className="text-sm rounded border px-2 py-1 bg-fuchsia-50 text-fuchsia-700">
-                Com participante externo: {table.getRowModel().rows.filter(r => (r.original as FlatRowData).hasParticipanteExterno).length}
+                Com participante externo: {table.getRowModel().rows.filter((row) => (row.original as FlatRowData).hasParticipanteExterno).length}
               </div>
               {activeFiltersCount > 0 && (
                 <div className="flex items-center gap-2 text-sm">
@@ -586,6 +673,18 @@ export function DataTable({
                 <Download className="h-4 w-4 mr-2" />
                 Excel
               </Button>
+              {onExport && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onExport('xlsx')}
+                  disabled={isLoading}
+                  title="Exportar via API"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Completo (API)
+                </Button>
+              )}
             </div>
           </div>
           
@@ -624,52 +723,68 @@ export function DataTable({
                   {table.getVisibleLeafColumns().map((column) => {
                     const headerLabel = typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id
                     const colId = column.id
-                    const isCategorical = ['contrato', 'status', 'tipoExibicao', 'alvo', 'contratoFilho', 'responsavel'].includes(colId)
-                    const selected = column.getFilterValue()
+                    const filterValue = column.getFilterValue()
+
+                    if (!column.getCanFilter()) {
+                      return <TableHead key={column.id} />
+                    }
+
+                    if (isCategoricalColumn(colId)) {
+                      const selectedValues = Array.isArray(filterValue)
+                        ? filterValue.filter((value): value is string => typeof value === 'string')
+                        : []
+                      const options = uniqueValues[colId]
+
+                      return (
+                        <TableHead key={column.id}>
+                          <details
+                            open={!!openFilters[colId]}
+                            onToggle={(event) =>
+                              setOpenFilters((previous) => ({
+                                ...previous,
+                                [colId]: (event.target as HTMLDetailsElement).open,
+                              }))
+                            }
+                          >
+                            <summary className="cursor-pointer text-sm flex items-center gap-1">
+                              Filtros
+                            </summary>
+                            <div className="mt-2 max-h-40 overflow-auto pr-2">
+                              {options.map((option) => {
+                                const checked = selectedValues.includes(option)
+                                return (
+                                  <label key={option} className="flex items-center gap-2 text-sm py-0.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(event) => {
+                                        const next = new Set(selectedValues)
+                                        if (event.target.checked) {
+                                          next.add(option)
+                                        } else {
+                                          next.delete(option)
+                                        }
+                                        column.setFilterValue(Array.from(next))
+                                      }}
+                                    />
+                                    <span className="truncate max-w-[180px]" title={option}>{option}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </details>
+                        </TableHead>
+                      )
+                    }
+
                     return (
                       <TableHead key={column.id}>
-                        {column.getCanFilter() && (
-                          isCategorical ? (
-                            <details open={!!openFilters[colId]} onToggle={(e) => setOpenFilters((p) => ({ ...p, [colId]: (e.target as HTMLDetailsElement).open }))}>
-                              <summary className="cursor-pointer text-sm flex items-center gap-1">
-                                Filtros
-                              </summary>
-                              <div className="mt-2 max-h-40 overflow-auto pr-2">
-                                {(uniqueValues as any)[colId].map((opt: string) => {
-                                  const list = Array.isArray(selected) ? (selected as string[]) : []
-                                  const checked = list.includes(opt)
-                                  return (
-                                    <label key={opt} className="flex items-center gap-2 text-sm py-0.5">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={(ev) => {
-                                          const prev = Array.isArray(column.getFilterValue()) ? ([...(column.getFilterValue() as string[])]) : []
-                                          if (ev.target.checked) {
-                                            prev.push(opt)
-                                          } else {
-                                            const idx = prev.indexOf(opt)
-                                            if (idx >= 0) prev.splice(idx, 1)
-                                          }
-                                          column.setFilterValue(prev)
-                                          column.columnDef.filterFn = 'inArray' as any
-                                        }}
-                                      />
-                                      <span className="truncate max-w-[180px]" title={opt}>{opt}</span>
-                                    </label>
-                                  )
-                                })}
-                              </div>
-                            </details>
-                          ) : (
-                            <Input
-                              placeholder={`Filtrar ${headerLabel}...`}
-                              value={(column.getFilterValue() as string) ?? ''}
-                              onChange={(e) => column.setFilterValue(e.target.value)}
-                              className="h-8"
-                            />
-                          )
-                        )}
+                        <Input
+                          placeholder={`Filtrar ${headerLabel}...`}
+                          value={typeof filterValue === 'string' ? filterValue : ''}
+                          onChange={(event) => column.setFilterValue(event.target.value)}
+                          className="h-8"
+                        />
                       </TableHead>
                     )
                   })}
@@ -677,7 +792,7 @@ export function DataTable({
               </TableHeader>
               
               <TableBody>
-                {table.getRowModel().rows?.length ? (
+                {table.getRowModel().rows.length ? (
                   table.getRowModel().rows.map((row) => (
                     <TableRow
                       key={row.id}

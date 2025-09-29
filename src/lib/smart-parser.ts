@@ -22,7 +22,6 @@ const RE_FUNC = /Funcion[áa]rio:\s*([^\n|]+?)(?=\s+-\s+Contrato:|\s*\| |$)/i
 // Match contrato with optional SUB marker, with or without hyphen after SUB number, e.g.:
 //   "Contrato: SUB 01 4600013206" or "Contrato: SUB 02 - 4600013206" or "Contrato: 4600013206"
 const RE_CONTRATO_SUB = /Contrato:\s*(SUB\s*\d{1,2})(?:\s*-\s*|\s+)?(\d{6,})/i
-const RE_CONTRATO_NUM = /Contrato:\s*(\d{6,})/i
 const RE_ESCOPO_PIPE = /\|\s*Escopo:\s*(.+)$/i
 const RE_ESCOPO = /Escopo:\s*(.+)$/i
 
@@ -44,7 +43,6 @@ export function parseAutor(autor: string): AutorInfo {
       if (sub) info.contratoFilho = sub.replace(/\s*-\s*$/, '')
     } else {
       // No SUB found; nothing to set for contratoFilho. Keep future extensibility.
-      const _cNum = RE_CONTRATO_NUM.exec(autor)
       // We intentionally ignore plain contract number here, as UI only needs SUB marker for "Contrato Filho".
     }
 
