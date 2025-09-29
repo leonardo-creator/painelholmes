@@ -1,19 +1,46 @@
 import { z } from 'zod'
 
+const ApiRegistroSchema = z.object({
+  autor: z.string().min(1, 'autor é obrigatório'),
+  data: z.string().min(1, 'data é obrigatória'),
+  extra_info: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => value ?? ''),
+  numero: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => value ?? ''),
+  prazo: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => value ?? ''),
+  status: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => value ?? ''),
+  tipo: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => value ?? '')
+})
+
+const ApiContratoSchema = z.object({
+  contrato: z.string().min(1, 'contrato é obrigatório'),
+  registros: z
+    .array(ApiRegistroSchema)
+    .nullish()
+    .transform((registros) => registros ?? [])
+})
+
 // Schema para validar a resposta da API externa
 export const ApiResponseSchema = z.object({
-  data: z.array(z.object({
-    contrato: z.string(),
-    registros: z.array(z.object({
-      autor: z.string(),
-      data: z.string(),
-      extra_info: z.string(),
-      numero: z.string(),
-      prazo: z.string(),
-      status: z.string(),
-      tipo: z.string(),
-    }))
-  })),
+  data: z.array(ApiContratoSchema),
   success: z.boolean()
 })
 

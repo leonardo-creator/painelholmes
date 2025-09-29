@@ -1,3 +1,5 @@
+import type { SyncLog } from '@prisma/client'
+
 import { API_CONFIG, ApiResponseSchema, SyncStatus } from './types'
 import { prisma } from './prisma'
 
@@ -19,8 +21,8 @@ export class ApiSyncService {
       return { success: false, message: 'Sync já está em andamento', recordsProcessed: 0 }
     }
 
-    this.isRunning = true
-    let syncLog: any = null
+  this.isRunning = true
+  let syncLog: SyncLog | null = null
 
     try {
   console.log('🚀 Iniciando sync dos dados...')

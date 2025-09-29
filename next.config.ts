@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['@tanstack/react-table', '@tanstack/table-core'],
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', '*.vercel.app'],

@@ -44,7 +44,7 @@ export interface RegistroData {
   readonly updatedAt: string
 }
 
-interface DataTableProps {
+export interface DataTableProps {
   readonly data: RegistroData[]
   readonly isLoading: boolean
   readonly onRefresh: () => void

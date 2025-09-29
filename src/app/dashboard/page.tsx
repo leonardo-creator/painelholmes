@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -8,8 +9,20 @@ import { RefreshCw, AlertTriangle, Clock, CheckCircle2, Database, Calendar } fro
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { DataTable } from '@/components/data-table'
+import type { DataTableProps } from '@/components/data-table'
 import { useData } from '@/hooks/use-data'
+
+const DataTable = dynamic<DataTableProps>(
+  () => import('@/components/data-table').then((mod) => mod.DataTable),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+        Carregando tabela...
+      </div>
+    ),
+  }
+)
 
 export default function Dashboard() {
   const {
